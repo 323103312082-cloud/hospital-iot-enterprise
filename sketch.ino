@@ -28,7 +28,7 @@ Servo bedServo;
 
 const char* ssid = "Wokwi-GUEST";
 const char* password = "";
-const char* mqtt_server = "broker.hivemq.com";
+const char* mqtt_server = "broker.emqx.io";
 WiFiClient espClient;
 PubSubClient client(espClient);
 
