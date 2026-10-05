@@ -32,6 +32,12 @@ const char* password = "";
 const char* mqtt_server = "broker.emqx.io";
 const int mqtt_port = 1883;
 
+// UNIQUE TOPIC - FIX FOR YOUR ISSUE
+const char* TOPIC_VITALS = "hospital/m2cloud_final/vitals";
+const char* TOPIC_ENV = "hospital/m2cloud_final/env";
+const char* TOPIC_SYNC = "hospital/m2cloud_final/vitals_sync";
+const char* TOPIC_CONTROL = "hospital/m2cloud_final/control/#";
+
 WiFiClient espClient;
 PubSubClient client(espClient);
 QueueHandle_t vitalQueue, envQueue;
@@ -49,13 +55,14 @@ int bufferIndex = 0;
 
 void callback(char* topic, byte* payload, unsigned int length){
   String msg; for(int i=0;i<length;i++) msg+=(char)payload[i];
-  if(String(topic)=="hospital/control/bed"){
+  String t = String(topic);
+  if(t.indexOf("bed")>=0){
     if(msg=="sleep") targetBedAngle=10;
     else if(msg=="breath") targetBedAngle=45;
     else if(msg=="emergency") targetBedAngle=90;
     else targetBedAngle=constrain(msg.toInt(),0,90);
   }
-  if(String(topic)=="hospital/control/sampling") samplingRate=constrain(msg.toInt(),5,60);
+  if(t.indexOf("sampling")>=0) samplingRate=constrain(msg.toInt(),5,60);
 }
 void SensorTask(void *pv){
   VitalData v;
@@ -86,18 +93,29 @@ void MqttTask(void *pv){
   for(;;){
     if(WiFi.status()!=WL_CONNECTED){ sysState=OFFLINE; WiFi.disconnect(); WiFi.begin(ssid,password); vTaskDelay(3000/portTICK_PERIOD_MS); }
     else if(!client.connected()){
-      sysState=DEGRADED; VitalData v; if(xQueuePeek(vitalQueue,&v,0)==pdTRUE && bufferIndex<BUFFER_SIZE) offlineBuffer[bufferIndex++]=v;
+      sysState=DEGRADED;
+      VitalData v; if(xQueuePeek(vitalQueue,&v,0)==pdTRUE && bufferIndex<BUFFER_SIZE) offlineBuffer[bufferIndex++]=v;
       String cid="ESP32Health-"+String(random(0xffff),HEX);
-      if(client.connect(cid.c_str())){ Serial.println("MQTT connected!"); client.subscribe("hospital/control/#"); }
+      if(client.connect(cid.c_str())){ Serial.println("MQTT connected!"); client.subscribe(TOPIC_CONTROL); }
       else{ Serial.println("MQTT fail rc="+String(client.state())); vTaskDelay(3000/portTICK_PERIOD_MS); }
     } else {
       sysState=ONLINE;
-      if(bufferIndex>0){ for(int i=0;i<bufferIndex;i++){ String p=String(offlineBuffer[i].hr)+","+String(offlineBuffer[i].spo2); client.publish("hospital/patient/vitals_sync",p.c_str()); } bufferIndex=0; }
+      if(bufferIndex>0){ for(int i=0;i<bufferIndex;i++){ String p="{\"hr\":"+String(offlineBuffer[i].hr)+"}"; client.publish(TOPIC_SYNC,p.c_str()); } bufferIndex=0; }
       VitalData v; EnvData e;
-      if(xQueueReceive(vitalQueue,&v,0)==pdTRUE){ String p="{\"hr\":"+String(v.hr)+",\"spo2\":"+String(v.spo2)+",\"bodyTemp\":"+String(v.bodyT)+",\"dose\":"+String(v.dose)+"}"; client.publish("hospital/patient/vitals",p.c_str()); Serial.println("Pub:"+p); }
-      if(xQueueReceive(envQueue,&e,0)==pdTRUE){ String p="{\"temp\":"+String(e.roomT)+",\"hum\":"+String(e.aqi)+"}"; client.publish("hospital/room/env",p.c_str()); }
+      if(xQueuePeek(vitalQueue,&v,0)==pdTRUE){
+        String p="{\"hr\":"+String(v.hr)+",\"spo2\":"+String(v.spo2)+",\"bodyTemp\":"+String(v.bodyT)+",\"dose\":"+String(v.dose)+"}";
+        bool ok = client.publish(TOPIC_VITALS,p.c_str());
+        Serial.println(String(TOPIC_VITALS)+" -> "+p+" ok="+String(ok));
+        xQueueReceive(vitalQueue,&v,0);
+      }
+      if(xQueuePeek(envQueue,&e,0)==pdTRUE){
+        String p="{\"temp\":"+String(e.roomT)+",\"hum\":"+String(e.aqi)+"}";
+        bool ok = client.publish(TOPIC_ENV,p.c_str());
+        Serial.println(String(TOPIC_ENV)+" -> "+p+" ok="+String(ok));
+        xQueueReceive(envQueue,&e,0);
+      }
     }
-    client.loop(); vTaskDelay(1000/portTICK_PERIOD_MS);
+    client.loop(); vTaskDelay(2000/portTICK_PERIOD_MS);
   }
 }
 void BedTask(void *pv){
@@ -112,7 +130,7 @@ void LcdTask(void *pv){
 void setup(){
   Serial.begin(115200); dht.begin(); ds18b20.begin(); lcd.begin(16,2); bedServo.attach(SERVO_PIN); pinMode(LED_PIN,OUTPUT); pinMode(BUZZ_PIN,OUTPUT);
   WiFi.mode(WIFI_STA); WiFi.begin(ssid,password);
-  client.setServer(mqtt_server,mqtt_port); client.setCallback(callback); client.setKeepAlive(60);
+  client.setServer(mqtt_server,mqtt_port); client.setCallback(callback); client.setKeepAlive(60); client.setBufferSize(512);
   vitalQueue=xQueueCreate(10,sizeof(VitalData)); envQueue=xQueueCreate(10,sizeof(EnvData)); lcdMutex=xSemaphoreCreateMutex(); servoMutex=xSemaphoreCreateMutex();
   xTaskCreate(SensorTask,"Sensor",4096,NULL,1,NULL); xTaskCreate(EnvTask,"Env",4096,NULL,1,NULL); xTaskCreate(MqttTask,"Mqtt",8192,NULL,2,NULL); xTaskCreate(BedTask,"Bed",2048,NULL,1,NULL); xTaskCreate(LcdTask,"Lcd",2048,NULL,1,NULL);
 }
