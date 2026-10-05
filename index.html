@@ -1,16 +1,85 @@
-<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Hospital Live</title><script src="https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js"></script>
-<style>body{font-family:Arial;background:#eef2ff;padding:15px}.card{background:#fff;padding:15px;border-radius:12px;margin:10px 0}#status{font-weight:bold}</style>
-</head><body>
-<h3>🏥 Hospital Live - EMQX</h3>
-<div class="card">Status: <span id="status">Connecting to broker.emqx.io...</span><br><small id="info"></small></div>
-<div class="card">HR: <b id="hr">--</b> | SpO2: <b id="spo2">--</b> | Body: <b id="bodyTemp">--</b></div>
-<div class="card">Room: <b id="temp">--</b> | AQI: <b id="hum">--</b></div>
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hospital Live - M2Cloud</title>
+<script src="https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js"></script>
+<style>
+body{font-family:Arial;background:#eef2ff;margin:0;padding:15px}
+.card{background:#fff;padding:15px;border-radius:12px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+h2{margin:0 0 10px 0}
+#status{font-weight:bold}
+b{font-size:20px}
+</style>
+</head>
+<body>
+<h2>🏥 Hospital Live Monitor</h2>
+
+<div class="card">
+Status: <span id="status" style="color:orange">Connecting...</span><br>
+<small>Broker: broker.emqx.io:8084</small><br>
+<small>Topic: hospital/m2cloud_final/#</small><br>
+<small id="last">-</small>
+</div>
+
+<div class="card">
+<h3>Doctor Panel - Vitals</h3>
+HR: <b id="hr">--</b> bpm<br>
+SpO2: <b id="spo2">--</b> %<br>
+Body Temp: <b id="bodyTemp">--</b> °C<br>
+Dose: <b id="dose">--</b> %
+</div>
+
+<div class="card">
+<h3>Facility Panel - Environment</h3>
+Room Temp: <b id="temp">--</b> °C<br>
+AQI / Hum: <b id="hum">--</b>
+</div>
+
 <script>
-const url = "wss://broker.emqx.io:8084/mqtt";
-document.getElementById("info").innerText = url;
-const client = mqtt.connect(url,{clientId:"web_"+Math.random().toString(16).slice(2,8)});
-client.on("connect",()=>{ document.getElementById("status").innerText="ONLINE 🟢 "+url; document.getElementById("status").style.color="green"; client.subscribe("hospital/#"); });
-client.on("message",(t,m)=>{ try{ let d=JSON.parse(m.toString()); if(t.includes("vitals")){ document.getElementById("hr").innerText=d.hr; document.getElementById("spo2").innerText=d.spo2; document.getElementById("bodyTemp").innerText=d.bodyTemp; } if(t.includes("env")){ document.getElementById("temp").innerText=d.temp; document.getElementById("hum").innerText=d.hum; } }catch(e){} });
-client.on("error",(e)=>{ document.getElementById("status").innerText="ERROR: "+e.message; });
-</script></body></html>
+const brokerUrl = "wss://broker.emqx.io:8084/mqtt";
+const topic = "hospital/m2cloud_final/#";
+
+const client = mqtt.connect(brokerUrl, {
+  clientId: "web_" + Math.random().toString(16).substr(2,8)
+});
+
+client.on("connect", function(){
+  document.getElementById("status").innerText = "ONLINE 🟢 Connected";
+  document.getElementById("status").style.color = "green";
+  client.subscribe(topic);
+  console.log("Subscribed: " + topic);
+});
+
+client.on("message", function(t, payload){
+  const msg = payload.toString();
+  console.log(t + " -> " + msg);
+  document.getElementById("last").innerText = t + " : " + msg;
+  
+  try{
+    const data = JSON.parse(msg);
+    if(t.includes("vitals")){
+      if(data.hr != null) document.getElementById("hr").innerText = data.hr;
+      if(data.spo2 != null) document.getElementById("spo2").innerText = data.spo2;
+      if(data.bodyTemp != null) document.getElementById("bodyTemp").innerText = data.bodyTemp;
+      if(data.dose != null) document.getElementById("dose").innerText = data.dose;
+    }
+    if(t.includes("env")){
+      if(data.temp != null) document.getElementById("temp").innerText = data.temp;
+      if(data.hum != null) document.getElementById("hum").innerText = data.hum;
+    }
+  }catch(e){}
+});
+
+client.on("error", function(err){
+  document.getElementById("status").innerText = "Error: " + err.message;
+  document.getElementById("status").style.color = "red";
+});
+client.on("offline", function(){
+  document.getElementById("status").innerText = "OFFLINE 🔴";
+  document.getElementById("status").style.color = "red";
+});
+</script>
+</body>
+</html>
