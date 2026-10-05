@@ -32,14 +32,15 @@ const char* password = "";
 const char* mqtt_server = "broker.emqx.io";
 const int mqtt_port = 1883;
 
-// UNIQUE TOPIC - FIX FOR YOUR ISSUE
 const char* TOPIC_VITALS = "hospital/m2cloud_final/vitals";
 const char* TOPIC_ENV = "hospital/m2cloud_final/env";
 const char* TOPIC_SYNC = "hospital/m2cloud_final/vitals_sync";
 const char* TOPIC_CONTROL = "hospital/m2cloud_final/control/#";
 
+// IDI IMPORTANT - NEE ERROR FIX
 WiFiClient espClient;
 PubSubClient client(espClient);
+
 QueueHandle_t vitalQueue, envQueue;
 SemaphoreHandle_t lcdMutex, servoMutex;
 
