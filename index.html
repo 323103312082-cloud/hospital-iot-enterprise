@@ -1,538 +1,441 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Hospital Live Monitor</title>
 
-<title>Hospital Live Monitor</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
 
-<style>
-* {
-  box-sizing: border-box;
-}
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #eef4f8;
+      color: #1e293b;
+    }
 
-body {
-  font-family: Arial, sans-serif;
-  background: #f0f4f8;
-  margin: 0;
-  padding: 20px;
-}
+    header {
+      background: #075985;
+      color: white;
+      text-align: center;
+      padding: 20px;
+      border-radius: 14px;
+      margin-bottom: 20px;
+    }
 
-.header {
-  background: #0d47a1;
-  color: white;
-  padding: 15px;
-  border-radius: 10px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
+    header h1 {
+      margin: 0 0 8px;
+    }
 
-.status {
-  padding: 7px 12px;
-  border-radius: 20px;
-  font-weight: bold;
-  font-size: 13px;
-}
+    #connection {
+      font-weight: bold;
+      color: #b91c1c;
+    }
 
-.online {
-  background: #4caf50;
-  color: white;
-}
+    .section-title {
+      margin: 24px 0 12px;
+      color: #075985;
+    }
 
-.offline {
-  background: #f44336;
-  color: white;
-}
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 15px;
+    }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
-  margin-top: 20px;
-}
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 3px 10px #00000012;
+      border-left: 5px solid #0284c7;
+    }
 
-.card {
-  background: white;
-  padding: 20px;
-  border-radius: 12px;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-  min-width: 0;
-}
+    .card h3 {
+      margin: 0 0 14px;
+      font-size: 16px;
+      color: #475569;
+    }
 
-.card h3 {
-  margin-top: 0;
-  color: #0d47a1;
-  border-bottom: 2px solid #0d47a1;
-  padding-bottom: 8px;
-}
+    .value {
+      font-size: 28px;
+      font-weight: bold;
+      color: #0369a1;
+      overflow-wrap: anywhere;
+    }
 
-.value {
-  font-size: 28px;
-  font-weight: bold;
-  color: #333;
-  margin: 10px 0 18px;
-  overflow-wrap: anywhere;
-}
+    .unit {
+      font-size: 13px;
+      color: #64748b;
+      margin-top: 6px;
+    }
 
-.label {
-  color: #666;
-  font-size: 14px;
-}
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 15px;
+    }
 
-.dose-warn {
-  color: #d32f2f;
-}
+    button {
+      padding: 11px 16px;
+      border: none;
+      border-radius: 8px;
+      background: #0284c7;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+    }
 
-.controls button {
-  padding: 10px 16px;
-  margin: 5px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: bold;
-  color: white;
-  background: #1976d2;
-}
+    button:hover {
+      background: #0369a1;
+    }
 
-.controls button:hover {
-  opacity: 0.85;
-}
+    input {
+      width: 110px;
+      padding: 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+    }
 
-.controls button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+    #log {
+      background: #0f172a;
+      color: #a7f3d0;
+      padding: 12px;
+      border-radius: 8px;
+      min-height: 60px;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
 
-#log {
-  height: 120px;
-  overflow-y: auto;
-  overflow-wrap: anywhere;
-  background: #f5f5f5;
-  padding: 8px;
-  font-size: 12px;
-  margin-top: 5px;
-  border-radius: 5px;
-}
-
-@media (max-width: 700px) {
-  body {
-    padding: 10px;
-  }
-
-  .grid {
-    grid-template-columns: 1fr;
-  }
-
-  .value {
-    font-size: 24px;
-  }
-}
-</style>
+    footer {
+      text-align: center;
+      color: #64748b;
+      margin-top: 25px;
+      font-size: 13px;
+    }
+  </style>
 </head>
 
 <body>
 
-<div class="header">
-  <div>
-    <h2 style="margin:0">🏥 Hospital Live Monitor</h2>
-    <small>Topic: hospital/harini_final/#</small>
-  </div>
+<header>
+  <h1>🏥 Smart Hospital Live Monitor</h1>
+  <p>Real-Time IoT Monitoring Dashboard</p>
+  <p>MQTT Status: <span id="connection">Connecting...</span></p>
+</header>
 
-  <div id="status" class="status offline">
-    ● OFFLINE
-  </div>
-</div>
-
-<div style="margin-top:10px;font-size:13px;color:#555;overflow-wrap:anywhere">
-  Broker: <b>broker.emqx.io:8084</b><br>
-  Vitals: <b>hospital/harini_final/vitals</b><br>
-  Environment: <b>hospital/harini_final/env</b>
-</div>
+<h2 class="section-title">Patient Monitoring</h2>
 
 <div class="grid">
-
-  <!-- Doctor Panel -->
   <div class="card">
-    <h3>Doctor Panel - Vitals</h3>
-
-    <div>
-      <span class="label">Heart Rate (HR)</span>
-      <div class="value" id="hr">-- bpm</div>
-    </div>
-
-    <div>
-      <span class="label">SpO2</span>
-      <div class="value" id="spo2">-- %</div>
-    </div>
-
-    <div>
-      <span class="label">Body Temperature</span>
-      <div class="value" id="bodyTemp">-- °C</div>
-    </div>
-
-    <div>
-      <span class="label">Dose</span>
-      <div class="value" id="dose">-- %</div>
-    </div>
+    <h3>❤️ Heart Rate</h3>
+    <div class="value" id="hr">--</div>
+    <div class="unit">BPM</div>
   </div>
 
-  <!-- Facility Panel -->
   <div class="card">
-    <h3>Facility Panel - Environment</h3>
-
-    <div>
-      <span class="label">Room Temperature</span>
-      <div class="value" id="roomTemp">-- °C</div>
-    </div>
-
-    <div>
-      <span class="label">AQI / Humidity</span>
-      <div class="value" id="aqi">--</div>
-    </div>
-
-    <div>
-      <span class="label">Bed Angle</span>
-      <div class="value" id="bedAngle">-- °</div>
-    </div>
-
-    <div>
-      <span class="label">System Log</span>
-      <div id="log" role="log" aria-live="polite">Waiting for MQTT connection...</div>
-    </div>
+    <h3>🩸 SpO₂</h3>
+    <div class="value" id="spo2">--</div>
+    <div class="unit">%</div>
   </div>
 
+  <div class="card">
+    <h3>🌡️ Body Temperature</h3>
+    <div class="value" id="bodyTemp">--</div>
+    <div class="unit">°C</div>
+  </div>
+
+  <div class="card">
+    <h3>💊 Dosage</h3>
+    <div class="value" id="dose">--</div>
+    <div class="unit">Latest value from ESP32</div>
+  </div>
 </div>
 
-<!-- Control Panel -->
-<div class="card" style="margin-top:20px">
-  <h3>Control Panel</h3>
+<h2 class="section-title">Environment Monitoring</h2>
 
-  <div class="controls">
-    <b>Bed Position:</b><br>
-
-    <button onclick="sendBed('sleep')">
-      Sleep (10°)
-    </button>
-
-    <button onclick="sendBed('breath')">
-      Breath (45°)
-    </button>
-
-    <button style="background:#d32f2f"
-            onclick="sendBed('emergency')">
-      Emergency (90°)
-    </button>
-
-    <button style="background:#555"
-            onclick="sendBed('0')">
-      Flat (0°)
-    </button>
+<div class="grid">
+  <div class="card">
+    <h3>🌡️ Room Temperature</h3>
+    <div class="value" id="roomTemp">--</div>
+    <div class="unit">°C</div>
   </div>
 
-  <div class="controls" style="margin-top:15px">
-    <b>Sampling Rate:</b><br>
+  <div class="card">
+    <h3>💧 Humidity</h3>
+    <div class="value" id="humidity">--</div>
+    <div class="unit">%</div>
+  </div>
 
-    <button style="background:#388e3c"
-            onclick="sendSampling('5')">
-      Fast (5s)
-    </button>
+  <div class="card">
+    <h3>🌫️ Air Quality Index</h3>
+    <div class="value" id="aqi">--</div>
+    <div class="unit">AQI (simulated)</div>
+  </div>
 
-    <button style="background:#388e3c"
-            onclick="sendSampling('30')">
-      Normal (30s)
-    </button>
+  <div class="card">
+    <h3>🛏️ Bed Angle</h3>
+    <div class="value" id="bedAngle">--</div>
+    <div class="unit">Degrees</div>
   </div>
 </div>
+
+<h2 class="section-title">System Status</h2>
+
+<div class="grid">
+  <div class="card">
+    <h3>Current Status</h3>
+    <div class="value" id="status">Waiting...</div>
+  </div>
+
+  <div class="card">
+    <h3>Last Update</h3>
+    <div class="value" id="lastUpdate" style="font-size:18px">--</div>
+  </div>
+</div>
+
+<h2 class="section-title">Bed Controls</h2>
+
+<div class="controls">
+  <button onclick="sendBedCommand('sleep')">Sleep Position</button>
+  <button onclick="sendBedCommand('breath')">Breathing Position</button>
+  <button onclick="sendBedCommand('emergency')">Emergency Position</button>
+</div>
+
+<div class="controls">
+  <input id="angleInput" type="number" min="0" max="180"
+         placeholder="Angle 0-180">
+  <button onclick="sendCustomAngle()">Set Bed Angle</button>
+</div>
+
+<h2 class="section-title">Sensor Sampling Interval</h2>
+
+<div class="controls">
+  <input id="samplingInput" type="number" min="5" max="60"
+         value="5" placeholder="Seconds">
+  <button onclick="setSampling()">Update Interval</button>
+</div>
+
+<h2 class="section-title">MQTT Message Log</h2>
+<div id="log">Waiting for MQTT messages...</div>
+
+<footer>
+  Educational IoT simulation only — not for clinical decisions.
+</footer>
 
 <script>
-"use strict";
+  // MQTT WebSocket connection for the browser dashboard
+  const BROKER = "broker.emqx.io";
+  const PORT = 8084;
+  const PATH = "/mqtt";
 
-// MQTT broker settings
-const brokerHost = "broker.emqx.io";
-const brokerPort = 8084;
-const brokerPath = "/mqtt";
+  const VITALS_TOPIC = "hospital/harini_final/vitals";
+  const ENV_TOPIC = "hospital/harini_final/env";
+  const STATUS_TOPIC = "hospital/harini_final/status";
 
-// MQTT topics
-const topicVitals = "hospital/harini_final/vitals";
-const topicEnv = "hospital/harini_final/env";
-const topicBed = "hospital/harini_final/control/bed";
-const topicSampling = "hospital/harini_final/control/sampling";
+  const BED_TOPIC = "hospital/harini_final/control/bed";
+  const SAMPLING_TOPIC = "hospital/harini_final/control/sampling";
 
-// Reconnection control
-let reconnectTimer = null;
-let reconnectDelay = 3000;
-let manuallyStopped = false;
+  const clientId =
+    "hospital_dashboard_" +
+    Math.random().toString(16).slice(2, 10);
 
-// Create a unique client ID for this browser tab
-const clientId =
-  "web_harini_" + Math.random().toString(16).slice(2, 12);
+  const client = new Paho.MQTT.Client(
+    BROKER,
+    PORT,
+    PATH,
+    clientId
+  );
 
-const client = new Paho.MQTT.Client(
-  brokerHost,
-  brokerPort,
-  brokerPath,
-  clientId
-);
+  const connectionElement = document.getElementById("connection");
+  const logElement = document.getElementById("log");
 
-// Safe system log
-function logMsg(message) {
-  const log = document.getElementById("log");
-  const entry = document.createElement("div");
-
-  entry.textContent =
-    new Date().toLocaleTimeString() + " - " + message;
-
-  log.prepend(entry);
-
-  // Keep the latest 50 messages
-  while (log.children.length > 50) {
-    log.removeChild(log.lastChild);
-  }
-}
-
-// Update connection status
-function setStatus(connected) {
-  const status = document.getElementById("status");
-
-  if (connected) {
-    status.textContent = "● ONLINE";
-    status.className = "status online";
-  } else {
-    status.textContent = "● OFFLINE";
-    status.className = "status offline";
-  }
-}
-
-// Display a value, including zero
-function updateValue(id, value, suffix = "") {
-  if (value === undefined || value === null || value === "") {
-    return;
+  function setText(id, value) {
+    if (value !== undefined && value !== null) {
+      document.getElementById(id).textContent = value;
+    }
   }
 
-  document.getElementById(id).textContent = value + suffix;
-}
-
-// Handle connection loss
-client.onConnectionLost = function(response) {
-  setStatus(false);
-
-  if (response && response.errorCode !== 0) {
-    logMsg("Connection lost: " + response.errorMessage);
+  function showLog(message) {
+    logElement.textContent =
+      new Date().toLocaleTimeString() + " — " + message;
   }
 
-  scheduleReconnect();
-};
+  function connectMQTT() {
+    connectionElement.textContent = "Connecting...";
+    connectionElement.style.color = "#f59e0b";
 
-// Handle incoming MQTT messages
-client.onMessageArrived = function(message) {
-  const topic = message.destinationName;
+    client.connect({
+      useSSL: true,
+      timeout: 10,
+      keepAliveInterval: 30,
 
-  try {
-    const data = JSON.parse(message.payloadString);
+      onSuccess: function () {
+        connectionElement.textContent = "Connected";
+        connectionElement.style.color = "#16a34a";
 
-    logMsg("Received " + topic + ": " + message.payloadString);
+        client.subscribe(VITALS_TOPIC);
+        client.subscribe(ENV_TOPIC);
+        client.subscribe(STATUS_TOPIC);
 
-    if (topic === topicVitals) {
-      updateValue("hr", data.hr, " bpm");
-      updateValue("spo2", data.spo2, " %");
-      updateValue("bodyTemp", data.bodyTemp, " °C");
+        showLog("Connected to MQTT. Subscribed to dashboard topics.");
+      },
 
-      if (data.dose !== undefined && data.dose !== null) {
-        const doseElement = document.getElementById("dose");
+      onFailure: function (error) {
+        connectionElement.textContent = "Connection failed";
+        connectionElement.style.color = "#b91c1c";
 
-        doseElement.textContent = data.dose + " %";
-        doseElement.className =
-          Number(data.dose) > 80
-            ? "value dose-warn"
-            : "value";
+        showLog("MQTT connection failed: " +
+          (error.errorMessage || "Check internet and broker."));
       }
-    }
+    });
+  }
 
-    if (topic === topicEnv) {
-      updateValue("roomTemp", data.temp, " °C");
+  client.onConnectionLost = function (response) {
+    connectionElement.textContent = "Disconnected";
+    connectionElement.style.color = "#b91c1c";
 
-      if (data.aqi !== undefined || data.humidity !== undefined) {
-        const parts = [];
+    showLog("MQTT disconnected: " +
+      (response.errorMessage || "Connection lost"));
 
-        if (data.aqi !== undefined && data.aqi !== null) {
-          parts.push("AQI: " + data.aqi);
-        }
-
-        if (data.humidity !== undefined && data.humidity !== null) {
-          parts.push("Humidity: " + data.humidity + " %");
-        }
-
-        document.getElementById("aqi").textContent =
-          parts.join(" | ");
+    // Retry the connection after a short delay
+    setTimeout(function () {
+      if (!client.isConnected()) {
+        connectMQTT();
       }
-
-      // Update bed angle only if the device publishes it
-      if (data.bedAngle !== undefined && data.bedAngle !== null) {
-        updateValue("bedAngle", data.bedAngle, "°");
-      }
-    }
-
-  } catch (error) {
-    logMsg("Invalid JSON received on " + topic);
-    console.error("MQTT message error:", error);
-  }
-};
-
-// Subscribe to required topics
-function subscribeTopics() {
-  client.subscribe(topicVitals, {
-    qos: 0,
-    onSuccess: function() {
-      logMsg("Subscribed: " + topicVitals);
-    },
-    onFailure: function(error) {
-      logMsg("Vitals subscription failed");
-      console.error(error);
-    }
-  });
-
-  client.subscribe(topicEnv, {
-    qos: 0,
-    onSuccess: function() {
-      logMsg("Subscribed: " + topicEnv);
-    },
-    onFailure: function(error) {
-      logMsg("Environment subscription failed");
-      console.error(error);
-    }
-  });
-}
-
-// Connect to MQTT broker
-function connectMQTT() {
-  if (manuallyStopped || client.isConnected()) {
-    return;
-  }
-
-  if (reconnectTimer !== null) {
-    clearTimeout(reconnectTimer);
-    reconnectTimer = null;
-  }
-
-  logMsg("Connecting to MQTT broker...");
-
-  client.connect({
-    useSSL: true,
-    timeout: 10,
-    keepAliveInterval: 30,
-    cleanSession: true,
-
-    onSuccess: function() {
-      reconnectDelay = 3000;
-      setStatus(true);
-      logMsg("MQTT connected successfully!");
-
-      subscribeTopics();
-    },
-
-    onFailure: function(error) {
-      setStatus(false);
-      logMsg("Connection failed: " +
-        (error.errorMessage || "Check broker or network"));
-
-      scheduleReconnect();
-    }
-  });
-}
-
-// Reconnect after connection failure
-function scheduleReconnect() {
-  if (manuallyStopped || reconnectTimer !== null) {
-    return;
-  }
-
-  reconnectTimer = setTimeout(function() {
-    reconnectTimer = null;
-    connectMQTT();
-  }, reconnectDelay);
-
-  reconnectDelay = Math.min(reconnectDelay * 2, 30000);
-}
-
-// Send a control message
-function publishMessage(topic, payload) {
-  if (!client.isConnected()) {
-    logMsg("Cannot send command: MQTT is offline");
-    alert("MQTT is disconnected. Please wait for reconnection.");
-    return false;
-  }
-
-  try {
-    const message = new Paho.MQTT.Message(String(payload));
-    message.destinationName = topic;
-    message.qos = 0;
-    message.retained = false;
-
-    client.send(message);
-
-    logMsg("Sent to " + topic + ": " + payload);
-    return true;
-
-  } catch (error) {
-    logMsg("Failed to send command");
-    console.error(error);
-    return false;
-  }
-}
-
-// Bed control
-function sendBed(value) {
-  const angles = {
-    sleep: 10,
-    breath: 45,
-    emergency: 90,
-    "0": 0
+    }, 3000);
   };
 
-  if (!Object.prototype.hasOwnProperty.call(angles, value)) {
-    logMsg("Invalid bed command");
-    return;
+  client.onMessageArrived = function (message) {
+    const topic = message.destinationName;
+    const raw = message.payloadString;
+
+    let data;
+
+    try {
+      data = JSON.parse(raw);
+    } catch (error) {
+      showLog("Invalid JSON on " + topic + ": " + raw);
+      return;
+    }
+
+    if (topic === VITALS_TOPIC) {
+      // Update dosage even when its value is zero
+      if (data.dose !== undefined) {
+        setText("dose", data.dose);
+      } else if (data.dosage !== undefined) {
+        setText("dose", data.dosage);
+      }
+
+      if (data.hr !== undefined) {
+        setText("hr", data.hr);
+      }
+
+      if (data.spo2 !== undefined) {
+        setText("spo2", data.spo2);
+      }
+
+      if (data.bodyTemp !== undefined) {
+        setText("bodyTemp", data.bodyTemp);
+      }
+
+      if (data.bedAngle !== undefined) {
+        setText("bedAngle", data.bedAngle);
+      }
+
+      if (data.status !== undefined) {
+        setText("status", data.status);
+      }
+
+      setText("lastUpdate", new Date().toLocaleTimeString());
+      showLog("Vitals received: " + raw);
+    }
+
+    else if (topic === ENV_TOPIC) {
+      if (data.roomTemp !== undefined) {
+        setText("roomTemp", data.roomTemp);
+      }
+
+      if (data.humidity !== undefined) {
+        setText("humidity", data.humidity);
+      }
+
+      if (data.aqi !== undefined) {
+        setText("aqi", data.aqi);
+      }
+
+      setText("lastUpdate", new Date().toLocaleTimeString());
+      showLog("Environment data received: " + raw);
+    }
+
+    else if (topic === STATUS_TOPIC) {
+      if (typeof data === "string") {
+        setText("status", data);
+      } else {
+        if (data.status !== undefined) {
+          setText("status", data.status);
+        }
+
+        if (data.bedAngle !== undefined) {
+          setText("bedAngle", data.bedAngle);
+        }
+      }
+
+      showLog("Status received: " + raw);
+    }
+  };
+
+  function publishMessage(topic, value) {
+    if (!client.isConnected()) {
+      showLog("Cannot send command: MQTT is not connected.");
+      return;
+    }
+
+    const message = new Paho.MQTT.Message(String(value));
+    message.destinationName = topic;
+    client.send(message);
+
+    showLog("Command sent to " + topic + ": " + value);
   }
 
-  if (publishMessage(topicBed, value)) {
-    // This is the requested angle, not sensor-confirmed position.
-    document.getElementById("bedAngle").textContent =
-      angles[value] + "° (commanded)";
-  }
-}
-
-// Sampling rate control
-function sendSampling(value) {
-  if (value !== "5" && value !== "30") {
-    logMsg("Invalid sampling interval");
-    return;
+  function sendBedCommand(command) {
+    publishMessage(BED_TOPIC, command);
   }
 
-  publishMessage(topicSampling, value);
-}
+  function sendCustomAngle() {
+    const angle = Number(document.getElementById("angleInput").value);
 
-// Start connection
-connectMQTT();
+    if (!Number.isFinite(angle) || angle < 0 || angle > 180) {
+      alert("Enter a bed angle between 0 and 180.");
+      return;
+    }
 
-// Stop reconnection timer when the page is closed
-window.addEventListener("beforeunload", function() {
-  manuallyStopped = true;
-
-  if (reconnectTimer !== null) {
-    clearTimeout(reconnectTimer);
+    publishMessage(BED_TOPIC, angle);
   }
 
-  if (client.isConnected()) {
-    client.disconnect();
+  function setSampling() {
+    const seconds = Number(
+      document.getElementById("samplingInput").value
+    );
+
+    if (!Number.isFinite(seconds) || seconds < 5 || seconds > 60) {
+      alert("Enter a sampling interval from 5 to 60 seconds.");
+      return;
+    }
+
+    publishMessage(SAMPLING_TOPIC, seconds);
   }
-});
+
+  connectMQTT();
 </script>
 
 </body>
 </html>
-```
